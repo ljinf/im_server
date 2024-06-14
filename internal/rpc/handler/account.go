@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/protobuf/ptypes/empty"
+	v1 "github.com/ljinf/im_server/api/v1"
 	"github.com/ljinf/im_server/internal/model"
 	"github.com/ljinf/im_server/internal/rpc/repository"
 	"github.com/ljinf/im_server/pkg/proto/account"
-	pwd_encoder "github.com/ljinf/meet_server/pkg/helper/pwd-encoder"
+	pwd_encoder "github.com/ljinf/im_server/pkg/pwd-encoder"
 	"go.uber.org/zap"
 )
 
@@ -28,44 +29,32 @@ func (h *AccountServerHandler) CreateAccount(ctx context.Context, req *account.C
 	userId, err := h.sid.GenUint64()
 	if err != nil {
 		h.logger.Error(err.Error())
-		return nil, err_msg.ErrCreateIdFailed
+		return nil, v1.ErrCreateIdFailed
+	}
+	if userId == 0 {
+		h.logger.Error("err:create account return userId=0", zap.Any("userId", userId))
+		return nil, v1.ErrCreateUserFailed
 	}
 
 	salt, encodePwd := pwd_encoder.PwdEncode(req.GetPassword())
-	info := model.Register{
+	accountInfo := model.AccountInfo{
 		UserId:   int64(userId),
 		Phone:    req.Phone,
 		Email:    req.Email,
 		Password: encodePwd,
 		Salt:     salt,
+		Status:   1,
 	}
 
-	if err := h.repo.CreateAccount(&info); err != nil {
-		h.logger.Error(err.Error(), zap.String("phone", req.Phone),
-			zap.String("email", req.Email))
-		return nil, err_msg.ErrCreateUserFailed
-	}
-
-	if info.UserId == 0 {
-		h.logger.Error("err:create account return userId=0", zap.String("phone", req.Phone),
-			zap.String("email", req.Email))
-		return nil, err_msg.ErrCreateUserFailed
-	}
-
-	//创建新用户信息
-	userInfo := model.UserInfo{
-		UserId: info.UserId,
-		Status: 1,
-	}
-	if err = h.repo.CreateUserInfo(&userInfo); err != nil {
-		h.logger.Error(fmt.Sprintf("初始化用户信息失败 %v", err.Error()), zap.Any("user", userId))
-		return nil, err_msg.ErrCreateUserInfoFailed
+	if err = h.repo.CreateAccountInfo(&accountInfo); err != nil {
+		h.logger.Error(fmt.Sprintf("初始化用户信息失败 %v", err.Error()), zap.Any("user", accountInfo))
+		return nil, v1.ErrCreateUserInfoFailed
 	}
 
 	return &account.CreateAccountRes{
-		UserId: info.UserId,
-		Phone:  info.Phone,
-		Email:  info.Email,
+		UserId: accountInfo.UserId,
+		Phone:  accountInfo.Phone,
+		Email:  accountInfo.Email,
 	}, nil
 
 }
@@ -74,7 +63,7 @@ func (h *AccountServerHandler) GetAccountInfo(ctx context.Context, req *account.
 	accountInfo, err := h.repo.GetAccountInfo(req.GetPhone(), req.GetEmail())
 	if err != nil {
 		h.logger.Error(err.Error(), zap.String("phone", req.Phone), zap.String("email", req.Phone))
-		return nil, err_msg.ErrInternalServerError
+		return nil, v1.ErrInternalServerError
 	}
 
 	return &account.AccountInfoRes{
@@ -91,7 +80,7 @@ func (h *AccountServerHandler) UpdateAccountInfo(ctx context.Context, req *accou
 	infoById, err := h.repo.GetAccountInfoById(req.UserId)
 	if err != nil {
 		h.logger.Error(err.Error(), zap.Any("userId", req.UserId))
-		return nil, err_msg.ErrInternalServerError
+		return nil, v1.ErrInternalServerError
 	}
 
 	//检查新的phone，email是否已被绑定
@@ -99,11 +88,11 @@ func (h *AccountServerHandler) UpdateAccountInfo(ctx context.Context, req *accou
 		infoByPhone, err := h.repo.GetAccountInfo(req.Phone, "")
 		if err != nil {
 			h.logger.Error(err.Error(), zap.Any("phone", req.Phone))
-			return nil, err_msg.ErrInternalServerError
+			return nil, v1.ErrInternalServerError
 		}
 
 		if infoByPhone != nil {
-			return nil, err_msg.ErrPhoneAlreadyUse
+			return nil, v1.ErrPhoneAlreadyUse
 		}
 
 	}
@@ -112,11 +101,11 @@ func (h *AccountServerHandler) UpdateAccountInfo(ctx context.Context, req *accou
 		infoByEmail, err := h.repo.GetAccountInfo("", req.Email)
 		if err != nil {
 			h.logger.Error(err.Error(), zap.Any("email", req.Email))
-			return nil, err_msg.ErrInternalServerError
+			return nil, v1.ErrInternalServerError
 		}
 
 		if infoByEmail != nil {
-			return nil, err_msg.ErrEmailAlreadyUse
+			return nil, v1.ErrEmailAlreadyUse
 		}
 	}
 
@@ -135,7 +124,7 @@ func (h *AccountServerHandler) UpdateAccountInfo(ctx context.Context, req *accou
 
 	if err := h.repo.UpdateAccountInfo(&accountInfo); err != nil {
 		h.logger.Error(err.Error(), zap.Any("accountInfo", accountInfo))
-		return nil, err_msg.ErrUpdateUserInfoFailed
+		return nil, v1.ErrUpdateUserInfoFailed
 	}
 
 	return &empty.Empty{}, nil
@@ -146,7 +135,7 @@ func (h *AccountServerHandler) GetUserInfo(ctx context.Context, req *account.Use
 	userInfo, err := h.repo.GetUserInfo(req.UserId)
 	if err != nil {
 		h.logger.Error(err.Error(), zap.Any("userInfo", userInfo))
-		return nil, err_msg.ErrInternalServerError
+		return nil, v1.ErrInternalServerError
 	}
 
 	res := &account.UserInfoRes{
@@ -168,7 +157,7 @@ func (h *AccountServerHandler) UpdateUserInfo(ctx context.Context, req *account.
 	}
 	if err := h.repo.UpdateUserInfo(&info); err != nil {
 		h.logger.Error(err.Error(), zap.Any("userInfo", info))
-		return nil, err_msg.ErrUpdateUserInfoFailed
+		return nil, v1.ErrUpdateUserInfoFailed
 	}
 
 	return &account.UpdateUserInfoRes{

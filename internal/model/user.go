@@ -38,3 +38,15 @@ type UserInfo struct {
 func (u *UserInfo) TableName() string {
 	return "user_info"
 }
+
+type AccountInfo struct {
+	UserId   int64  `json:"user_id"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
+	NickName string `json:"nick_name"` //昵称
+	Avatar   string `json:"avatar"`    //头像
+	Gender   int    `json:"gender"`    //性别
+	Password string `json:"password"`
+	Salt     string `json:"salt"`
+	Status   int    `json:"status"` //用户状态  0:异常  1:正常
+}

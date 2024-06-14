@@ -13,7 +13,6 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/wire v0.6.0
-	github.com/ljinf/meet_server v0.0.0-20240331091042-96417ad0ef0b
 	github.com/redis/go-redis/v9 v9.5.3
 	github.com/sony/sonyflake v1.2.0
 	github.com/spf13/viper v1.19.0

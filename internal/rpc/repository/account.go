@@ -4,15 +4,17 @@ import (
 	"context"
 	"github.com/ljinf/im_server/internal/model"
 	"github.com/ljinf/im_server/internal/repository"
+	"gorm.io/gorm"
 	"strings"
+	"time"
 )
 
 type AccountRepository interface {
-	CreateAccount(info *model.Register) error
+	CreateAccountInfo(info *model.AccountInfo) error
 	GetAccountInfoById(userId int64) (*model.Register, error)
 	GetAccountInfo(phone, email string) (*model.Register, error)
 	UpdateAccountInfo(info *model.Register) error
-	CreateUserInfo(user *model.UserInfo) error
+
 	GetUserInfo(userId int64) (*model.UserInfo, error)
 	UpdateUserInfo(info *model.UserInfo) error
 }
@@ -27,8 +29,33 @@ func NewAccountRepository(repo *repository.Repository) AccountRepository {
 	}
 }
 
-func (a *accountRepository) CreateAccount(info *model.Register) error {
-	return a.DB(context.Background()).Create(info).Error
+func (a *accountRepository) CreateAccountInfo(info *model.AccountInfo) error {
+	return a.DB(context.Background()).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		//注册信息
+		registerInfo := model.Register{
+			UserId:    info.UserId,
+			Phone:     info.Phone,
+			Email:     info.Email,
+			Password:  info.Password,
+			Salt:      info.Salt,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+
+		if err := tx.Create(&registerInfo).Error; err != nil {
+			return err
+		}
+
+		//创建新用户信息
+		userInfo := model.UserInfo{
+			UserId:    info.UserId,
+			Status:    1,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		return tx.Create(&userInfo).Error
+	})
 }
 
 func (a *accountRepository) GetAccountInfo(phone, email string) (*model.Register, error) {
@@ -56,10 +83,6 @@ func (a *accountRepository) GetAccountInfoById(userId int64) (*model.Register, e
 
 func (a *accountRepository) UpdateAccountInfo(info *model.Register) error {
 	return a.DB(context.Background()).Save(info).Error
-}
-
-func (a *accountRepository) CreateUserInfo(user *model.UserInfo) error {
-	return a.DB(context.Background()).Save(user).Error
 }
 
 func (a *accountRepository) GetUserInfo(userId int64) (*model.UserInfo, error) {
